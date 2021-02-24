@@ -31,8 +31,8 @@
 extern player_t* player_config;
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 //2000 1440 1460 1436
-#define RECEIVE 2048
-//#define RECEIVE 3000
+//#define RECEIVE 1440 2144
+#define RECEIVE 1440
 enum clientStatus cstatus;
 //static uint32_t metacount = 0;
 //static uint16_t metasize = 0;
@@ -268,7 +268,7 @@ bool clientParsePlaylist(char* s)
 	
   str = strstr(s,"http://");
   if (str ==NULL) str = strstr(s,"HTTP://");
-  if ((str != NULL))   {s= str+7; j = 7; strcpy (url,"http://"); }
+  if (str != NULL)   {s= str+7; j = 7; strcpy (url,"http://"); }
   else
   {
 	str = strstr(s,"https://");
@@ -710,7 +710,7 @@ bool clientSaveOneHeader(const char* t, uint16_t len, uint8_t header_num)
 	header.members.mArr[header_num] = stringify(tt,len); //tt is freed here
 	vTaskDelay(2);
 	clientPrintOneHeader(header_num);
-	ESP_LOGV(TAG,"header after num:%d addr:0x%x  cont:\"%s\"",header_num,(int)header.members.mArr[header_num],header.members.mArr[header_num]);
+	ESP_LOGV(TAG,"Header after num:%d addr:0x%x  cont:\"%s\"",header_num,(int)header.members.mArr[header_num],header.members.mArr[header_num]);
 	return true;
 }
 
@@ -1303,7 +1303,7 @@ void clientTask(void *pvParams) {
 	portBASE_TYPE uxHighWaterMark;
 	struct timeval timeout;
     timeout.tv_usec = 0;
-	timeout.tv_sec = 3;
+	timeout.tv_sec = 5;
 	int sockfd;
 	int bytes_read;
 	uint8_t cnterror;
@@ -1344,13 +1344,13 @@ void clientTask(void *pvParams) {
 		xSemaphoreGive(sConnected);
 		if(xSemaphoreTake(sConnect, portMAX_DELAY)) 
 		{		
-			VS1053_HighPower();
+			if (get_audio_output_mode() == VS1053)  VS1053_HighPower();
 			xSemaphoreTake(sDisconnect, 0);
 			sockfd = socket(AF_INET, SOCK_STREAM, 0);
-			ESP_LOGD(TAG,"socket: %d", sockfd);
+			ESP_LOGD(TAG,"Socket: %d", sockfd);
 			if(sockfd < 0)
 			{
-				ESP_LOGE(TAG,"socket create, errno: %d", errno);
+				ESP_LOGE(TAG,"Socket create, errno: %d", errno);
 				xSemaphoreGive(sDisconnect);
 				continue;
 			}
@@ -1358,7 +1358,7 @@ void clientTask(void *pvParams) {
 			dest.sin_family = AF_INET;
 			dest.sin_port = htons(clientPort);
 			dest.sin_addr.s_addr = inet_addr(inet_ntoa(*(struct in_addr*)(serverInfo->h_addr_list[0])));
-			ESP_LOGI(TAG,"ip: %x   ADDR:%s\n", dest.sin_addr.s_addr, inet_ntoa(*(struct in_addr*)(serverInfo-> h_addr_list[0])));
+			ESP_LOGI(TAG,"IP: %x   ADDR:%s\n", dest.sin_addr.s_addr, inet_ntoa(*(struct in_addr*)(serverInfo-> h_addr_list[0])));
 			bytes_read = 0;
 			/*---Connect to server---*/
 			ssl = NULL;
@@ -1422,6 +1422,7 @@ void clientTask(void *pvParams) {
 				else
 					send(sockfd, (char*)bufrec, strlen((char*)bufrec), 0);
 
+				ESP_LOGD(TAG,"\nSent: %s\n",bufrec);
 				if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
 					ESP_LOGE(TAG,"Socket: %d  setsockopt: %d  errno:%d ",sockfd, bytes_read,errno);
 //////
@@ -1453,7 +1454,7 @@ void clientTask(void *pvParams) {
 							if (errno == 11) bytes_read = 0;
 						}
 					}
-//if (bytes_read < 1000 )
+//if (bytes_read < 100 ) ESP_LOGD(TAG,"\nReceived: %s\n",bufrec);
 //	printf("Rec:%d\n%s\n",bytes_read,bufrec);
 //	printf(" %d ",bytes_read);	fflush(stdout);
 					if ( bytes_read > 0 )
@@ -1468,10 +1469,10 @@ void clientTask(void *pvParams) {
 						vTaskDelay(20);
 						if ((errno == 128)||(cnterror > 20 )) break;
 					}
-					vTaskDelay(1);
+					vTaskDelay(2); // >1 mandatory
 					// if a stop is asked
 					if(xSemaphoreTake(sDisconnect, 0))
-						{ clearHeaders(); break;	}
+					{ clearHeaders(); break;}
 				}
 				while (( bytes_read > 0 )||(playing && (bytes_read == 0)));
 			} else
@@ -1509,7 +1510,7 @@ void clientTask(void *pvParams) {
 							while (spiRamFifoFill()) vTaskDelay(200);
 							vTaskDelay(100);
 							playing=0;
-							clientDisconnect("data not played");
+							clientDisconnect("Data not played");
 						}
 					}
 						//
@@ -1535,7 +1536,7 @@ void clientTask(void *pvParams) {
 				if (get_audio_output_mode() == VS1053) VS1053_flush_cancel();
 				playing = 0;
 				vTaskDelay(1);	// stop without click
-				VS1053_LowPower();
+				if (get_audio_output_mode() == VS1053) VS1053_LowPower();
 				setVolumei(getVolume());
 				strcpy(userAgent,g_device->ua);
 			}
