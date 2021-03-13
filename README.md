@@ -1,12 +1,13 @@
-##PIN CONNECT
-ESP32 =>  PC5102
-3.3v  =>	3.3v
-G25	  =>	LCK
-G26	  =>	BCK
-5V	  =>	VCC
-GND	  =>	GND
-G22	  =>	DIN
-GND	  =>	SCL
+### Pin Connect
+|ESP32  | PC5102|
+|-------|-------|
+|3.3v   | 3.3v|
+|G25    |LCK|
+|G26    |BCK|
+|5V     |VCC|
+|GND    |GND|
+|G22    |DIN|
+|GND    |SCL|
 
 ## STATE
 Release 1.9 Stable
